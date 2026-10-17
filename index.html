@@ -529,9 +529,9 @@
       levelDuration: 24,            // Sekunden pro Level
       maxLevel: 5,
       baseSpeed: 30,                // px/s zu Beginn (Level 1)
-      speedGrowthPerLevel: 15,      // px/s pro Level
+      speedGrowthPerLevel: 5,      // px/s pro Level
       spawnIntervalStart: 2200,     // ms
-      spawnIntervalMin: 900,        // ms
+      spawnIntervalMin: 1000,        // ms
       maxWordsOnScreen: 6,
       scorePerLetter: 1,
       penaltyPerWrongLetter: 1,
@@ -550,17 +550,52 @@
     // ============================================================
     // THEMEN-DATEN
     // ============================================================
-    const THEMES = [{
-      id: "weltraum",
-      name: "Weltraum",
-      levels: [
-        { level: 1, words: ["Sonne", "Mars", "Erde", "Mond", "Stern", "Gas"] },
-        { level: 2, words: ["Rakete", "Asteroid", "Saturn", "Komet", "Orbit"] },
-        { level: 3, words: ["Astronaut", "Galaxie", "Teleskop", "Sonnensystem"] },
-        { level: 4, words: ["Schwarzes Loch", "Raumstation", "Lichtjahr"] },
-        { level: 5, words: ["Die Erde ist ein Planet.", "Wir fliegen zum Mars!"] }
-      ]
-    }];
+    const THEMES = [
+  {
+    id: "zombies",
+    name: "Zombies",
+    levels: [
+      { level: 1, words: ["Blut", "Grab", "Faul", "Biss", "Kral", "Darm"] },
+      { level: 2, words: ["Zombie", "Untot", "Seuche", "Horde", "Virus", "Angst"] },
+      { level: 3, words: ["Apokalypse", "Infektion", "Überleben", "Bunker", "Mutation"] },
+      { level: 4, words: ["Zombie-Horde", "Seuchengefahr", "Überlebenscamp", "Todeszone"] },
+      { level: 5, words: ["Die Toten wandeln.", "Walking Dead" ] }
+    ]
+  },
+  {
+    id: "highfantasy",
+    name: "High Fantasy",
+    levels: [
+      { level: 1, words: ["Elf", "Ork", "Rune", "Burg", "Gold", "Drache"] },
+      { level: 2, words: ["Magier", "Zwerg", "Schuppen", "Ritter", "Zauber", "Klinge"] },
+      { level: 3, words: ["Zauberspruch", "Königreich", "Drachenhort", "Runenschwert"] },
+      { level: 4, words: ["Elfenkönigin", "Schattenmagier", "Drachenreiter", "Zaubertränke"] },
+      { level: 5, words: ["Die alten Drachen.", "Das Schwert des Königs!"] }
+    ]
+  },
+  {
+    id: "xmen",
+    name: "X-Men",
+    levels: [
+      { level: 1, words: ["Eis", "Sturm", "Feuer", "Gen", "X", "Men"] },
+      { level: 2, words: ["Sentinel", "Wolverine", "Cyclops", "Storm", "Jean", "Rogue", "Deadpool"] },
+      { level: 3, words: ["Mutation", "Telepathie", "Magneto", "Gambit", "Nightcrawler"] },
+      { level: 4, words: ["Professor X", "Kraftfeld", "Gestaltwandler", "Firestar", "Genosha", "Cerebro"] },
+      { level: 5, words: ["X-Mansion.", "Institut für begabte Jugendliche.", "Sabertooth", "Mystique", "Jubilee", "Hugh Jackman"] }
+    ]
+  },
+  {
+    id: "weltraum",
+    name: "Weltraum",
+    levels: [
+      { level: 1, words: ["Sonne", "Mars", "Erde", "Mond", "Stern", "Gas"] },
+      { level: 2, words: ["Rakete", "Asteroid", "Saturn", "Komet", "Orbit", "Venus"] },
+      { level: 3, words: ["Astronaut", "Galaxie", "Teleskop", "Sonnensystem", "Raumsonde"] },
+      { level: 4, words: ["Schwarzes Loch", "Raumstation", "Lichtjahr", "Milchstraße"] },
+      { level: 5, words: ["Oortsche Wolke", "Pluto", "Jupiter", "Astronomische Einheit"] }
+    ]
+  }
+];
 
     // ============================================================
     // GAME STATE
