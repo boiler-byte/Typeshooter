@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Type-Shooter: Weltraum</title>
+  <style>
+    /* ===== Grundlegende Resets & Farbkontraste (WCAG AA) ===== */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg-dark: #0a0e1a;
+      --bg-panel: #141b2b;
+      --text-light: #eef4ff;
+      --text-muted: #a0b3d9;
+      --accent: #3fa9f5;
+      --accent-glow: #7fdbff;
+      --danger: #ff5e5e;
+      --warning: #ffd93d;
+      --hud-height: 80px;
+      --hud-height-mobile: 100px;
+      --font-size-base: clamp(1rem, 2.5vw, 1.25rem);
+      --font-size-word: clamp(1.1rem, 3.5vw, 1.8rem);
+      --border-radius: 8px;
+      --focus-outline: 3px solid #ffd93d;
+      --transition-fast: 0.15s ease;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-dark);
+      color: var(--text-light);
+      font-family: 'Segoe UI', 'Roboto', system-ui, sans-serif;
+      font-size: var(--font-size-base);
+      line-height: 1.5;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ===== App-Container ===== */
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ===== Spielbereich ===== */
+    #playfield {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      overflow: hidden;
+      background: radial-gradient(ellipse at 50% 0%, #1a1f35 0%, #0a0e1a 70%);
+      min-height: 0; /* wichtig für Flex */
+    }
+
+    /* ===== HUD (untere Leiste) ===== */
+    #hud {
+      position: relative;
+      flex-shrink: 0;
+      height: var(--hud-height);
+      background: var(--bg-panel);
+      border-top: 2px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 0.5rem;
+      z-index: 10;
+      gap: 0.25rem;
+      flex-wrap: wrap;
+      align-content: center;
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    .hud-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 60px;
+      text-align: center;
+      font-size: clamp(0.75rem, 2vw, 1rem);
+    }
+
+    .hud-label {
+      color: var(--text-muted);
+      font-size: 0.7em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hud-value {
+      font-weight: 700;
+      font-size: 1.2em;
+      color: var(--accent-glow);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hud-value.warning {
+      color: var(--danger);
+      animation: pulse-warning 0.8s infinite alternate;
+    }
+
+    @keyframes pulse-warning {
+      from { opacity: 1; }
+      to { opacity: 0.4; }
+    }
+
+    /* ===== Wort-Elemente ===== */
+    .word {
+      position: absolute;
+      white-space: nowrap;
+      padding: 0.15em 0.4em;
+      border-radius: 6px;
+      font-size: var(--font-size-word);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      transition: opacity var(--transition-fast), filter var(--transition-fast), box-shadow var(--transition-fast);
+      will-change: transform, top;
+      user-select: none;
+      cursor: default;
+      /* Border-Stil wird per JS gesetzt (Geschwindigkeitsmuster) */
+      border-width: 3px;
+      border-style: solid;
+    }
+
+    .word.selected {
+      outline: 3px solid var(--accent-glow);
+      outline-offset: 3px;
+      box-shadow: 0 0 18px rgba(127, 219, 255, 0.6);
+      z-index: 5;
+    }
+
+    .word.dimmed {
+      opacity: 0.45;
+      filter: grayscale(0.4);
+    }
+
+    /* Getippte Buchstaben dunkler/ausgegraut */
+    .word .typed {
+      opacity: 0.5;
+      color: #2a2f45;
+      text-shadow: none;
+    }
+
+    /* Wort-Shake bei Fehler */
+    .word.shake {
+      animation: word-shake 0.3s ease;
+    }
+
+    @keyframes word-shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+
+    /* ===== Partikel / Explosion ===== */
+    .particle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 20;
+      animation: particle-burst 0.6s ease-out forwards;
+    }
+
+    @keyframes particle-burst {
+      0% { transform: translate(0, 0) scale(1); opacity: 1; }
+      100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+    }
+
+    /* ===== Punkte-Popup ===== */
+    .score-popup {
+      position: absolute;
+      font-weight: 800;
+      font-size: 1.4em;
+      color: var(--warning);
+      text-shadow: 0 0 10px rgba(255, 217, 61, 0.8);
+      pointer-events: none;
+      z-index: 25;
+      animation: popup-float 1s ease-out forwards;
+      white-space: nowrap;
+    }
+
+    @keyframes popup-float {
+      0% { transform: translateY(0); opacity: 1; }
+      100% { transform: translateY(-60px); opacity: 0; }
+    }
+
+    /* ===== Overlays ===== */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 14, 26, 0.92);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 1.5rem;
+      text-align: center;
+      backdrop-filter: blur(4px);
+    }
+
+    .overlay.hidden {
+      display: none;
+    }
+
+    .overlay h1 {
+      font-size: clamp(1.8rem, 6vw, 3rem);
+      color: var(--accent-glow);
+      margin-bottom: 0.5rem;
+      text-shadow: 0 0 20px rgba(63, 169, 245, 0.5);
+    }
+
+    .overlay h2 {
+      font-size: clamp(1.4rem, 4vw, 2rem);
+      color: var(--accent);
+      margin-bottom: 1rem;
+    }
+
+    .overlay p, .overlay ul {
+      max-width: 600px;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+    }
+
+    .overlay ul {
+      text-align: left;
+      list-style: none;
+      padding: 0;
+      margin: 1rem 0;
+    }
+
+    .overlay li {
+      padding: 0.25rem 0;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .overlay li span:last-child {
+      font-weight: 700;
+      color: var(--accent-glow);
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 0.8em 2em;
+      font-size: clamp(1rem, 2.5vw, 1.2rem);
+      font-weight: 700;
+      color: #0a0e1a;
+      background: var(--accent);
+      border: none;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      transition: background var(--transition-fast), transform var(--transition-fast);
+      margin-top: 1rem;
+      min-width: 200px;
+    }
+
+    .btn:hover, .btn:focus {
+      background: var(--accent-glow);
+      transform: scale(1.03);
+      outline: var(--focus-outline);
+      outline-offset: 2px;
+    }
+
+    .btn:focus-visible {
+      outline: var(--focus-outline);
+      outline-offset: 2px;
+    }
+
+    /* Themen-Auswahl (vorbereitet) */
+    .theme-list {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 1rem 0;
+    }
+
+    .theme-btn {
+      padding: 0.5em 1.2em;
+      background: transparent;
+      color: var(--accent);
+      border: 2px solid var(--accent);
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      font-weight: 600;
+      transition: all var(--transition-fast);
+    }
+
+    .theme-btn.active, .theme-btn:hover, .theme-btn:focus {
+      background: var(--accent);
+      color: #0a0e1a;
+      outline: var(--focus-outline);
+      outline-offset: 2px;
+    }
+
+    /* ===== Visuelle Effekte ===== */
+    #screen-flash {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 50;
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+
+    #screen-flash.flash-red {
+      background: rgba(255, 0, 0, 0.25);
+      opacity: 1;
+      animation: flash-fade 0.4s ease-out forwards;
+    }
+
+    @keyframes flash-fade {
+      0% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    #vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 40;
+      box-shadow: inset 0 0 120px rgba(255, 0, 0, 0);
+      transition: box-shadow 0.3s;
+    }
+
+    #vignette.active {
+      box-shadow: inset 0 0 120px rgba(255, 0, 0, 0.6);
+    }
+
+    /* Screen Shake */
+    .shake-screen {
+      animation: screen-shake 0.4s ease;
+    }
+
+    @keyframes screen-shake {
+      0%, 100% { transform: translate(0, 0); }
+      10% { transform: translate(-8px, 4px); }
+      30% { transform: translate(8px, -4px); }
+      50% { transform: translate(-6px, -2px); }
+      70% { transform: translate(6px, 2px); }
+      90% { transform: translate(-2px, 1px); }
+    }
+
+    /* Level-Up Einblendung */
+    #level-up {
+      position: absolute;
+      top: 30%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: clamp(2rem, 8vw, 4rem);
+      font-weight: 900;
+      color: var(--warning);
+      text-shadow: 0 0 30px rgba(255, 217, 61, 0.9);
+      z-index: 60;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    #level-up.show {
+      animation: level-up-anim 1.5s ease-out forwards;
+    }
+
+    @keyframes level-up-anim {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+      20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+      80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); }
+    }
+
+    /* ARIA Live Region - unsichtbar */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* Mobile Anpassungen */
+    @media (max-width: 600px) {
+      :root {
+        --hud-height: var(--hud-height-mobile);
+      }
+      #hud {
+        padding: 0.25rem;
+      }
+      .hud-item {
+        min-width: 45px;
+      }
+      .overlay li {
+        font-size: 0.85rem;
+      }
+    }
+
+    /* Reduzierte Bewegung */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+      .word {
+        transition: none;
+      }
+      .shake-screen {
+        animation: none;
+      }
+      .particle {
+        display: none;
+      }
+      .score-popup {
+        animation: none;
+        opacity: 0;
+      }
+      .word.shake {
+        animation: none;
+      }
+      #level-up.show {
+        animation: none;
+        opacity: 0;
+      }
+    }
+
+    /* Fokus-Stile */
+    :focus-visible {
+      outline: var(--focus-outline);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" role="application" aria-label="Type-Shooter Weltraum">
+    <!-- Spielfeld -->
+    <div id="playfield" aria-hidden="true"></div>
+
+    <!-- HUD -->
+    <footer id="hud" role="status" aria-live="polite" aria-label="Spielstatus">
+      <div class="hud-item">
+        <span class="hud-label" id="label-level">Level</span>
+        <span class="hud-value" id="hud-level" aria-labelledby="label-level">1</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label" id="label-mult">Multiplikator</span>
+        <span class="hud-value" id="hud-mult" aria-labelledby="label-mult">×1</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label" id="label-score">Punkte</span>
+        <span class="hud-value" id="hud-score" aria-labelledby="label-score">0</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label" id="label-time">Zeit</span>
+        <span class="hud-value" id="hud-time" aria-labelledby="label-time">2:00</span>
+      </div>
+    </footer>
+
+    <!-- Start-Screen -->
+    <div id="start-screen" class="overlay" role="dialog" aria-labelledby="start-title" aria-modal="true">
+      <h1 id="start-title">Type-Shooter: Weltraum</h1>
+      <p>Tippe die fallenden Wörter ab, bevor sie die untere Leiste erreichen!</p>
+      <p>Jeder richtige Buchstabe gibt <strong>+1 Punkt</strong>. Schließe Wörter fehlerfrei ab, um deinen <strong>Multiplikator</strong> zu erhöhen.</p>
+      <p>Bei einem Fehler verlierst du 1 Punkt und der Multiplikator wird auf ×1 zurückgesetzt.</p>
+      <p>Erreicht ein Wort die Leiste, verlierst du <strong>25 × Multiplikator</strong> Punkte.</p>
+      <p>Das Spiel endet bei <strong>Score &lt; 0</strong> oder nach <strong>2 Minuten</strong>.</p>
+      <div class="theme-list" id="theme-list" role="radiogroup" aria-label="Themenauswahl">
+        <!-- Wird per JS befüllt -->
+      </div>
+      <button id="start-btn" class="btn" autofocus>Spiel starten</button>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over" class="overlay hidden" role="dialog" aria-labelledby="gameover-title" aria-modal="true">
+      <h1 id="gameover-title">Game Over</h1>
+      <h2 id="gameover-reason">Zeit abgelaufen!</h2>
+      <ul id="stats-list" aria-label="Spielstatistik">
+        <li><span>Endpunktzahl</span><span id="stat-score">0</span></li>
+        <li><span>Erreichtes Level</span><span id="stat-level">1</span></li>
+        <li><span>Max. Multiplikator</span><span id="stat-maxmult">×1</span></li>
+        <li><span>Zerstörte Wörter</span><span id="stat-destroyed">0</span></li>
+        <li><span>Richtige Buchstaben</span><span id="stat-correct">0</span></li>
+        <li><span>Falsche Buchstaben</span><span id="stat-wrong">0</span></li>
+        <li><span>Spielzeit</span><span id="stat-time">0:00</span></li>
+      </ul>
+      <button id="restart-btn" class="btn">Nochmal spielen</button>
+    </div>
+
+    <!-- Level-Up Einblendung -->
+    <div id="level-up" aria-hidden="true">Level 2</div>
+
+    <!-- Screen Flash & Vignette -->
+    <div id="screen-flash" aria-hidden="true"></div>
+    <div id="vignette" aria-hidden="true"></div>
+
+    <!-- Verstecktes Input für Mobile -->
+    <input type="text" id="mobile-input" class="sr-only" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-hidden="true" tabindex="-1" />
+
+    <!-- ARIA Live Region -->
+    <div id="aria-live" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+  </div>
+
+  <script>
+    "use strict";
+
+    // ============================================================
+    // KONFIGURATION (Balancing)
+    // ============================================================
+    const CONFIG = {
+      gameDuration: 120,            // Sekunden
+      levelDuration: 24,            // Sekunden pro Level
+      maxLevel: 5,
+      baseSpeed: 30,                // px/s zu Beginn (Level 1)
+      speedGrowthPerLevel: 15,      // px/s pro Level
+      spawnIntervalStart: 2200,     // ms
+      spawnIntervalMin: 900,        // ms
+      maxWordsOnScreen: 6,
+      scorePerLetter: 1,
+      penaltyPerWrongLetter: 1,
+      penaltyOnReachPlayer: 25,
+      multiplierResetOnError: true,
+      speedColorStages: [
+        { maxSpeed: 40, color: "#7FDBFF", pattern: "solid", label: "sehr langsam" },
+        { maxSpeed: 65, color: "#3FA9F5", pattern: "dashed", label: "langsam" },
+        { maxSpeed: 95, color: "#FFD93D", pattern: "dotted", label: "mittel" },
+        { maxSpeed: 130, color: "#FF8C42", pattern: "double", label: "schnell" },
+        { maxSpeed: Infinity, color: "#8B0000", pattern: "solid", label: "sehr schnell" }
+      ],
+      wordSpeedVariance: 0.3       // Zufallsstreuung pro Wort (±30%)
+    };
+
+    // ============================================================
+    // THEMEN-DATEN
+    // ============================================================
+    const THEMES = [{
+      id: "weltraum",
+      name: "Weltraum",
+      levels: [
+        { level: 1, words: ["Sonne", "Mars", "Erde", "Mond", "Stern", "Gas"] },
+        { level: 2, words: ["Rakete", "Asteroid", "Saturn", "Komet", "Orbit"] },
+        { level: 3, words: ["Astronaut", "Galaxie", "Teleskop", "Sonnensystem"] },
+        { level: 4, words: ["Schwarzes Loch", "Raumstation", "Lichtjahr"] },
+        { level: 5, words: ["Die Erde ist ein Planet.", "Wir fliegen zum Mars!"] }
+      ]
+    }];
+
+    // ============================================================
+    // GAME STATE
+    // ============================================================
+    const GameState = {
+      state: 'start', // 'start', 'playing', 'gameover'
+      themeId: 'weltraum',
+      score: 0,
+      level: 1,
+      multiplier: 1,
+      maxMultiplier: 1,
+      timeLeft: CONFIG.gameDuration,
+      wordsDestroyed: 0,
+      correctLetters: 0,
+      wrongLetters: 0,
+      gameTimeElapsed: 0,
+      startTimestamp: 0,
+      lastTimestamp: 0,
+      spawnTimer: 0,
+      levelTimer: 0,
+      selectedWordId: null,
+      activeWords: new Map(), // id -> word object
+      wordIdCounter: 0,
+      // Statistik
+      sessionStartTime: 0
+    };
+
+    // ============================================================
+    // DOM-REFERENZEN
+    // ============================================================
+    const DOM = {
+      playfield: document.getElementById('playfield'),
+      hudLevel: document.getElementById('hud-level'),
+      hudMult: document.getElementById('hud-mult'),
+      hudScore: document.getElementById('hud-score'),
+      hudTime: document.getElementById('hud-time'),
+      startScreen: document.getElementById('start-screen'),
+      gameOver: document.getElementById('game-over'),
+      startBtn: document.getElementById('start-btn'),
+      restartBtn: document.getElementById('restart-btn'),
+      themeList: document.getElementById('theme-list'),
+      levelUp: document.getElementById('level-up'),
+      screenFlash: document.getElementById('screen-flash'),
+      vignette: document.getElementById('vignette'),
+      ariaLive: document.getElementById('aria-live'),
+      statScore: document.getElementById('stat-score'),
+      statLevel: document.getElementById('stat-level'),
+      statMaxmult: document.getElementById('stat-maxmult'),
+      statDestroyed: document.getElementById('stat-destroyed'),
+      statCorrect: document.getElementById('stat-correct'),
+      statWrong: document.getElementById('stat-wrong'),
+      statTime: document.getElementById('stat-time'),
+      gameoverReason: document.getElementById('gameover-reason'),
+      mobileInput: document.getElementById('mobile-input')
+    };
+
+    // ============================================================
+    // AUDIO (Web Audio API – einfache synthetische Sounds)
+    // ============================================================
+    const Audio = (() => {
+      let ctx = null;
+      let enabled = true;
+
+      function init() {
+        if (!ctx) {
+          try {
+            ctx = new (window.AudioContext || window.webkitAudioContext)();
+          } catch (e) {
+            enabled = false;
+          }
+        }
+        if (ctx && ctx.state === 'suspended') {
+          ctx.resume();
+        }
+      }
+
+      function playTone(freq, duration, type = 'sine', volume = 0.08) {
+        if (!enabled) return;
+        init();
+        if (!ctx) return;
+        try {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, ctx.currentTime);
+          gain.gain.setValueAtTime(volume, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + duration);
+        } catch (e) { /* ignorieren */ }
+      }
+
+      return {
+        init,
+        correctLetter() { playTone(880, 0.06, 'sine', 0.05); },
+        wrongLetter() { playTone(220, 0.15, 'sawtooth', 0.08); },
+        wordComplete() {
+          playTone(660, 0.1, 'sine', 0.08);
+          setTimeout(() => playTone(880, 0.15, 'sine', 0.08), 80);
+        },
+        wordHitPlayer() { playTone(150, 0.3, 'sawtooth', 0.1); },
+        levelUp() {
+          playTone(523, 0.12, 'sine', 0.07);
+          setTimeout(() => playTone(659, 0.12, 'sine', 0.07), 100);
+          setTimeout(() => playTone(784, 0.2, 'sine', 0.07), 200);
+        },
+        gameOver() {
+          playTone(440, 0.3, 'sine', 0.08);
+          setTimeout(() => playTone(330, 0.4, 'sine', 0.08), 250);
+        }
+      };
+    })();
+
+    // ============================================================
+    // HILFSFUNKTIONEN
+    // ============================================================
+    function getTheme(id) {
+      return THEMES.find(t => t.id === id) || THEMES[0];
+    }
+
+    function getUnlockedWords(theme, level) {
+      const words = [];
+      for (const lvl of theme.levels) {
+        if (lvl.level <= level) {
+          words.push(...lvl.words);
+        }
+      }
+      return words;
+    }
+
+    // Gewichtete Auswahl: neuere Level bevorzugt, aber ältere bleiben möglich
+    function pickWeightedWord(theme, currentLevel) {
+      const pool = [];
+      for (const lvl of theme.levels) {
+        if (lvl.level <= currentLevel) {
+          // Gewicht: je höher das Level, desto höher die Wahrscheinlichkeit
+          const weight = lvl.level === currentLevel ? 3 : (lvl.level === currentLevel - 1 ? 2 : 1);
+          for (const w of lvl.words) {
+            for (let i = 0; i < weight; i++) pool.push(w);
+          }
+        }
+      }
+      if (pool.length === 0) return "Stern";
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    // Geschwindigkeitsfarbe & Muster
+    function getSpeedStyle(speed) {
+      for (const stage of CONFIG.speedColorStages) {
+        if (speed <= stage.maxSpeed) {
+          return { color: stage.color, pattern: stage.pattern, label: stage.label };
+        }
+      }
+      const last = CONFIG.speedColorStages[CONFIG.speedColorStages.length - 1];
+      return { color: last.color, pattern: last.pattern, label: last.label };
+    }
+
+    // Border-Stil je nach Muster
+    function getBorderStyle(pattern, color) {
+      switch (pattern) {
+        case 'solid': return `3px solid ${color}`;
+        case 'dashed': return `3px dashed ${color}`;
+        case 'dotted': return `3px dotted ${color}`;
+        case 'double': return `5px double ${color}`;
+        default: return `3px solid ${color}`;
+      }
+    }
+
+    // Zeit formatieren
+    function formatTime(seconds) {
+      const m = Math.floor(Math.max(0, seconds) / 60);
+      const s = Math.floor(Math.max(0, seconds) % 60);
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    // Zufällige Position innerhalb des Spielfelds
+    function randomXPosition(wordWidth, fieldWidth) {
+      const maxX = Math.max(0, fieldWidth - wordWidth - 10);
+      return 10 + Math.random() * maxX;
+    }
+
+    // ============================================================
+    // SPIELER (PLAYFIELD) RENDERER
+    // ============================================================
+    const Renderer = {
+      fieldWidth: 0,
+      fieldHeight: 0,
+
+      updateDimensions() {
+        const rect = DOM.playfield.getBoundingClientRect();
+        this.fieldWidth = rect.width;
+        this.fieldHeight = rect.height;
+      },
+
+      createWordElement(wordObj) {
+        const el = document.createElement('div');
+        el.className = 'word';
+        el.dataset.wordId = wordObj.id;
+        el.setAttribute('role', 'text');
+        el.setAttribute('aria-label', `Wort: ${wordObj.text}, ${wordObj.text.length} Buchstaben`);
+
+        // Text mit einzelnen Spans für Buchstaben
+        this.renderWordText(el, wordObj);
+
+        // Geschwindigkeitsfarbe & Muster
+        const style = getSpeedStyle(wordObj.speed);
+        el.style.color = style.color;
+        el.style.border = getBorderStyle(style.pattern, style.color);
+        el.style.backgroundColor = 'rgba(20, 27, 43, 0.85)';
+        el.style.textShadow = `0 0 8px ${style.color}40`;
+
+        // Position
+        el.style.left = wordObj.x + 'px';
+        el.style.top = wordObj.y + 'px';
+
+        // Tooltip für Geschwindigkeit (barrierefrei)
+        el.title = `Geschwindigkeit: ${style.label}`;
+
+        return el;
+      },
+
+      renderWordText(el, wordObj) {
+        const text = wordObj.text;
+        const typedCount = wordObj.typedCount;
+        let html = '';
+        for (let i = 0; i < text.length; i++) {
+          if (i < typedCount) {
+            html += `<span class="typed">${text[i] === ' ' ? '&nbsp;' : this.escapeHtml(text[i])}</span>`;
+          } else {
+            html += `<span>${text[i] === ' ' ? '&nbsp;' : this.escapeHtml(text[i])}</span>`;
+          }
+        }
+        el.innerHTML = html;
+      },
+
+      escapeHtml(ch) {
+        if (ch === '<') return '&lt;';
+        if (ch === '>') return '&gt;';
+        if (ch === '&') return '&amp;';
+        if (ch === '"') return '&quot;';
+        if (ch === "'") return '&#039;';
+        return ch;
+      },
+
+      updateWordPosition(wordObj) {
+        const el = DOM.playfield.querySelector(`[data-word-id="${wordObj.id}"]`);
+        if (el) {
+          el.style.top = wordObj.y + 'px';
+        }
+      },
+
+      updateWordSelection(wordObj, isSelected) {
+        const el = DOM.playfield.querySelector(`[data-word-id="${wordObj.id}"]`);
+        if (el) {
+          el.classList.toggle('selected', isSelected);
+        }
+      },
+
+      updateWordText(wordObj) {
+        const el = DOM.playfield.querySelector(`[data-word-id="${wordObj.id}"]`);
+        if (el) {
+          this.renderWordText(el, wordObj);
+        }
+      },
+
+      dimOtherWords(selectedId) {
+        document.querySelectorAll('.word').forEach(el => {
+          const id = parseInt(el.dataset.wordId, 10);
+          el.classList.toggle('dimmed', selectedId !== null && id !== selectedId);
+        });
+      },
+
+      removeWord(wordObj) {
+        const el = DOM.playfield.querySelector(`[data-word-id="${wordObj.id}"]`);
+        if (el) el.remove();
+      },
+
+      createExplosion(x, y, color) {
+        const particleCount = 12;
+        for (let i = 0; i < particleCount; i++) {
+          const p = document.createElement('div');
+          p.className = 'particle';
+          const angle = (Math.PI * 2 * i) / particleCount;
+          const dist = 40 + Math.random() * 60;
+          p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+          p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+          p.style.left = x + 'px';
+          p.style.top = y + 'px';
+          p.style.backgroundColor = color;
+          p.style.boxShadow = `0 0 8px ${color}`;
+          DOM.playfield.appendChild(p);
+          setTimeout(() => p.remove(), 700);
+        }
+      },
+
+      createScorePopup(x, y, text) {
+        const popup = document.createElement('div');
+        popup.className = 'score-popup';
+        popup.textContent = text;
+        popup.style.left = x + 'px';
+        popup.style.top = y + 'px';
+        DOM.playfield.appendChild(popup);
+        setTimeout(() => popup.remove(), 1100);
+      },
+
+      clearPlayfield() {
+        DOM.playfield.innerHTML = '';
+      }
+    };
+
+    // ============================================================
+    // SPAWNER
+    // ============================================================
+    const Spawner = {
+      spawnWord() {
+        const theme = getTheme(GameState.themeId);
+        const text = pickWeightedWord(theme, GameState.level);
+
+        // Geschwindigkeit berechnen
+        const baseSpeed = CONFIG.baseSpeed + (GameState.level - 1) * CONFIG.speedGrowthPerLevel;
+        // Kürzere Wörter schneller, längere langsamer
+        const lengthFactor = Math.max(0.6, 1.4 - (text.length / 20));
+        const variance = 1 + (Math.random() * 2 - 1) * CONFIG.wordSpeedVariance;
+        let speed = baseSpeed * lengthFactor * variance;
+        speed = Math.max(15, speed); // Mindestgeschwindigkeit
+
+        // ID
+        const id = GameState.wordIdCounter++;
+
+        // Temporäres Element zur Breitenmessung
+        const tempEl = document.createElement('div');
+        tempEl.className = 'word';
+        tempEl.style.visibility = 'hidden';
+        tempEl.style.position = 'absolute';
+        tempEl.style.whiteSpace = 'nowrap';
+        tempEl.textContent = text;
+        DOM.playfield.appendChild(tempEl);
+        const wordWidth = tempEl.getBoundingClientRect().width;
+        tempEl.remove();
+
+        // X-Position
+        Renderer.updateDimensions();
+        const x = randomXPosition(wordWidth, Renderer.fieldWidth);
+        const y = -50; // oberhalb des sichtbaren Bereichs
+
+        const wordObj = {
+          id,
+          text,
+          x,
+          y,
+          speed,
+          typedCount: 0,
+          element: null,
+          color: getSpeedStyle(speed).color
+        };
+
+        GameState.activeWords.set(id, wordObj);
+
+        // Element erstellen und einfügen
+        const el = Renderer.createWordElement(wordObj);
+        wordObj.element = el;
+        DOM.playfield.appendChild(el);
+
+        // Für Screenreader: neues Wort
+        // (nicht zu laut, um nicht zu nerven)
+        // ariaLive.textContent = `Neues Wort: ${text}`;
+      },
+
+      getSpawnInterval() {
+        const progress = (GameState.level - 1) / (CONFIG.maxLevel - 1);
+        return CONFIG.spawnIntervalStart - progress * (CONFIG.spawnIntervalStart - CONFIG.spawnIntervalMin);
+      }
+    };
+
+    // ============================================================
+    // INPUT HANDLER
+    // ============================================================
+    const InputHandler = {
+      handleKeydown(e) {
+        // Nur im Playing-State
+        if (GameState.state !== 'playing') return;
+
+        // Ignoriere Steuerungstasten
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
+        if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
+        if (e.key === 'Tab' || e.key === 'Escape' || e.key === 'Enter') return;
+
+        // Nur druckbare Zeichen (Länge 1) oder Leerzeichen
+        if (e.key.length !== 1) return;
+
+        e.preventDefault();
+
+        // Mobile Input synchronisieren
+        if (DOM.mobileInput.value.length > 1) {
+          DOM.mobileInput.value = '';
+        }
+
+        const char = e.key;
+
+        // Wenn kein Wort selektiert: versuche Auswahl
+        if (GameState.selectedWordId === null) {
+          this.trySelectWord(char);
+        } else {
+          // Wort ist selektiert: Buchstabe prüfen
+          this.processTypedChar(char);
+        }
+      },
+
+      trySelectWord(char) {
+        let bestWord = null;
+        let bestY = -Infinity;
+
+        for (const [id, word] of GameState.activeWords) {
+          if (word.text[0] === char) {
+            // unterste Wort (größtes y) wählen
+            if (word.y > bestY) {
+              bestY = word.y;
+              bestWord = word;
+            }
+          }
+        }
+
+        if (bestWord) {
+          GameState.selectedWordId = bestWord.id;
+          Renderer.updateWordSelection(bestWord, true);
+          Renderer.dimOtherWords(bestWord.id);
+          // Direkt den Buchstaben verarbeiten
+          this.processTypedChar(char);
+        }
+        // Kein passendes Wort: nichts tun (kein Punktabzug)
+      },
+
+      processTypedChar(char) {
+        const wordId = GameState.selectedWordId;
+        if (wordId === null) return;
+
+        const word = GameState.activeWords.get(wordId);
+        if (!word) {
+          // Wort existiert nicht mehr
+          GameState.selectedWordId = null;
+          Renderer.dimOtherWords(null);
+          return;
+        }
+
+        const expectedChar = word.text[word.typedCount];
+
+        if (char === expectedChar) {
+          // Richtig
+          word.typedCount++;
+          GameState.score += CONFIG.scorePerLetter;
+          GameState.correctLetters++;
+          Audio.correctLetter();
+          Renderer.updateWordText(word);
+
+          // Prüfen ob Wort komplett
+          if (word.typedCount >= word.text.length) {
+            this.completeWord(word);
+          }
+        } else {
+          // Falsch
+          GameState.score -= CONFIG.penaltyPerWrongLetter;
+          GameState.wrongLetters++;
+          if (CONFIG.multiplierResetOnError) {
+            GameState.multiplier = 1;
+          }
+          Audio.wrongLetter();
+
+          // Visuelles Feedback
+          const el = word.element;
+          if (el) {
+            el.classList.add('shake');
+            setTimeout(() => el.classList.remove('shake'), 300);
+          }
+          this.flashRed();
+
+          // Score prüfen
+          if (GameState.score < 0) {
+            this.endGame('Score unter 0 gefallen!');
+            return;
+          }
+        }
+
+        this.updateHUD();
+      },
+
+      completeWord(word) {
+        // Wort zerstört
+        const multiplierBefore = GameState.multiplier;
+        GameState.multiplier += 1;
+        GameState.maxMultiplier = Math.max(GameState.maxMultiplier, GameState.multiplier);
+        GameState.wordsDestroyed++;
+
+        Audio.wordComplete();
+
+        // Explosion
+        const el = word.element;
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          const fieldRect = DOM.playfield.getBoundingClientRect();
+          const x = rect.left - fieldRect.left + rect.width / 2;
+          const y = rect.top - fieldRect.top + rect.height / 2;
+
+          Renderer.createExplosion(x, y, word.color);
+
+          // Punkte-Popup nur bei Multiplikator > 1
+          if (multiplierBefore > 1) {
+            Renderer.createScorePopup(x, y - 20, `+${word.text.length * multiplierBefore} ×${multiplierBefore}`);
+          }
+        }
+
+        // Wort entfernen
+        GameState.activeWords.delete(word.id);
+        if (el) el.remove();
+
+        GameState.selectedWordId = null;
+        Renderer.dimOtherWords(null);
+
+        this.updateHUD();
+      },
+
+      flashRed() {
+        DOM.screenFlash.classList.remove('flash-red');
+        void DOM.screenFlash.offsetWidth;
+        DOM.screenFlash.classList.add('flash-red');
+        setTimeout(() => DOM.screenFlash.classList.remove('flash-red'), 400);
+      },
+
+      endGame(reason) {
+        if (GameState.state !== 'playing') return;
+        GameState.state = 'gameover';
+        GameState.gameTimeElapsed = CONFIG.gameDuration - GameState.timeLeft;
+
+        // Statistik anzeigen
+        DOM.statScore.textContent = Math.max(0, GameState.score);
+        DOM.statLevel.textContent = GameState.level;
+        DOM.statMaxmult.textContent = '×' + GameState.maxMultiplier;
+        DOM.statDestroyed.textContent = GameState.wordsDestroyed;
+        DOM.statCorrect.textContent = GameState.correctLetters;
+        DOM.statWrong.textContent = GameState.wrongLetters;
+        DOM.statTime.textContent = formatTime(GameState.gameTimeElapsed);
+        DOM.gameoverReason.textContent = reason;
+
+        DOM.gameOver.classList.remove('hidden');
+        DOM.restartBtn.focus();
+
+        Audio.gameOver();
+        this.announce(`Spiel vorbei. ${reason} Endpunktzahl: ${Math.max(0, GameState.score)}`);
+
+        // Aufräumen
+        GameState.selectedWordId = null;
+        Renderer.dimOtherWords(null);
+      },
+
+      updateHUD() {
+        DOM.hudScore.textContent = Math.max(0, GameState.score);
+        DOM.hudMult.textContent = '×' + GameState.multiplier;
+        DOM.hudLevel.textContent = GameState.level;
+        DOM.hudTime.textContent = formatTime(GameState.timeLeft);
+
+        // Warnfarbe bei < 10s
+        DOM.hudTime.classList.toggle('warning', GameState.timeLeft < 10);
+      },
+
+      announce(text) {
+        DOM.ariaLive.textContent = '';
+        setTimeout(() => {
+          DOM.ariaLive.textContent = text;
+        }, 50);
+      }
+    };
+
+    // ============================================================
+    // GAME LOOP
+    // ============================================================
+    let animationFrameId = null;
+
+    function gameLoop(timestamp) {
+      if (GameState.state !== 'playing') return;
+
+      if (!GameState.lastTimestamp) {
+        GameState.lastTimestamp = timestamp;
+        animationFrameId = requestAnimationFrame(gameLoop);
+        return;
+      }
+
+      const deltaMs = Math.min(timestamp - GameState.lastTimestamp, 100); // Max 100ms, um Sprünge zu vermeiden
+      const deltaSec = deltaMs / 1000;
+      GameState.lastTimestamp = timestamp;
+
+      // Zeit aktualisieren
+      GameState.timeLeft -= deltaSec;
+      GameState.gameTimeElapsed += deltaSec;
+
+      // Countdown prüfen
+      if (GameState.timeLeft <= 0) {
+        GameState.timeLeft = 0;
+        InputHandler.updateHUD();
+        InputHandler.endGame('Zeit abgelaufen!');
+        return;
+      }
+
+      // Level-Up prüfen (zeitbasiert)
+      const elapsed = CONFIG.gameDuration - GameState.timeLeft;
+      const newLevel = Math.min(CONFIG.maxLevel, Math.floor(elapsed / CONFIG.levelDuration) + 1);
+      if (newLevel > GameState.level) {
+        GameState.level = newLevel;
+        InputHandler.updateHUD();
+        Audio.levelUp();
+
+        // Level-Up Einblendung
+        DOM.levelUp.textContent = `Level ${newLevel}`;
+        DOM.levelUp.classList.remove('show');
+        void DOM.levelUp.offsetWidth;
+        DOM.levelUp.classList.add('show');
+        setTimeout(() => DOM.levelUp.classList.remove('show'), 1600);
+
+        InputHandler.announce(`Level ${newLevel} erreicht!`);
+      }
+
+      // Spawn-Timer
+      GameState.spawnTimer += deltaMs;
+      const spawnInterval = Spawner.getSpawnInterval();
+      if (GameState.spawnTimer >= spawnInterval && GameState.activeWords.size < CONFIG.maxWordsOnScreen) {
+        GameState.spawnTimer = 0;
+        Spawner.spawnWord();
+      }
+
+      // Wörter bewegen
+      Renderer.updateDimensions();
+      const playerLineY = Renderer.fieldHeight;
+
+      for (const [id, word] of GameState.activeWords) {
+        // Geschwindigkeit in px/s → y-Position
+        word.y += word.speed * deltaSec;
+
+        // Prüfen ob untere Border erreicht
+        if (word.y >= playerLineY - 10) {
+          // Wort trifft Spieler
+          GameState.score -= CONFIG.penaltyOnReachPlayer * GameState.multiplier;
+          GameState.multiplier = 1;
+
+          Audio.wordHitPlayer();
+
+          // Screen Shake
+          DOM.playfield.classList.add('shake-screen');
+          setTimeout(() => DOM.playfield.classList.remove('shake-screen'), 400);
+
+          // Vignette
+          DOM.vignette.classList.add('active');
+          setTimeout(() => DOM.vignette.classList.remove('active'), 300);
+
+          // Wort entfernen
+          GameState.activeWords.delete(id);
+          if (word.element) word.element.remove();
+
+          // Falls selektiert, Auswahl aufheben
+          if (GameState.selectedWordId === id) {
+            GameState.selectedWordId = null;
+            Renderer.dimOtherWords(null);
+          }
+
+          InputHandler.updateHUD();
+
+          // Score prüfen
+          if (GameState.score < 0) {
+            InputHandler.endGame('Score unter 0 gefallen!');
+            return;
+          }
+        } else {
+          // Position aktualisieren
+          Renderer.updateWordPosition(word);
+        }
+      }
+
+      // HUD aktualisieren
+      InputHandler.updateHUD();
+
+      animationFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    // ============================================================
+    // SPIEL STARTEN / RESET
+    // ============================================================
+    function startGame() {
+      // Audio initialisieren (User-Geste)
+      Audio.init();
+
+      // State zurücksetzen
+      GameState.state = 'playing';
+      GameState.score = 0;
+      GameState.level = 1;
+      GameState.multiplier = 1;
+      GameState.maxMultiplier = 1;
+      GameState.timeLeft = CONFIG.gameDuration;
+      GameState.wordsDestroyed = 0;
+      GameState.correctLetters = 0;
+      GameState.wrongLetters = 0;
+      GameState.gameTimeElapsed = 0;
+      GameState.lastTimestamp = 0;
+      GameState.spawnTimer = 0;
+      GameState.selectedWordId = null;
+      GameState.activeWords.clear();
+      GameState.wordIdCounter = 0;
+
+      // Overlays verstecken
+      DOM.startScreen.classList.add('hidden');
+      DOM.gameOver.classList.add('hidden');
+      DOM.levelUp.classList.remove('show');
+      DOM.vignette.classList.remove('active');
+
+      // Spielfeld leeren
+      Renderer.clearPlayfield();
+
+      // HUD aktualisieren
+      InputHandler.updateHUD();
+
+      // Mobile Input fokussieren
+      DOM.mobileInput.value = '';
+      DOM.mobileInput.focus();
+
+      // Loop starten
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(gameLoop);
+
+      InputHandler.announce('Spiel gestartet! Tippe die Wörter ab.');
+    }
+
+    function goToStartScreen() {
+      GameState.state = 'start';
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      Renderer.clearPlayfield();
+      DOM.gameOver.classList.add('hidden');
+      DOM.startScreen.classList.remove('hidden');
+      DOM.startBtn.focus();
+      DOM.hudScore.textContent = '0';
+      DOM.hudMult.textContent = '×1';
+      DOM.hudLevel.textContent = '1';
+      DOM.hudTime.textContent = '2:00';
+      DOM.hudTime.classList.remove('warning');
+    }
+
+    // ============================================================
+    // THEMEN-AUSWAHL (UI vorbereiten)
+    // ============================================================
+    function renderThemeList() {
+      DOM.themeList.innerHTML = '';
+      THEMES.forEach(theme => {
+        const btn = document.createElement('button');
+        btn.className = 'theme-btn';
+        btn.textContent = theme.name;
+        btn.setAttribute('role', 'radio');
+        btn.setAttribute('aria-checked', theme.id === GameState.themeId ? 'true' : 'false');
+        btn.dataset.themeId = theme.id;
+        btn.addEventListener('click', () => {
+          GameState.themeId = theme.id;
+          document.querySelectorAll('.theme-btn').forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('aria-checked', 'false');
+          });
+          btn.classList.add('active');
+          btn.setAttribute('aria-checked', 'true');
+        });
+        if (theme.id === GameState.themeId) {
+          btn.classList.add('active');
+          btn.setAttribute('aria-checked', 'true');
+        }
+        DOM.themeList.appendChild(btn);
+      });
+    }
+
+    // ============================================================
+    // EVENT LISTENERS
+    // ============================================================
+    document.addEventListener('keydown', (e) => {
+      // Globale Tastatursteuerung
+      if (GameState.state === 'playing') {
+        InputHandler.handleKeydown(e);
+      }
+    });
+
+    // Mobile Input – Tastatureingaben abfangen
+    DOM.mobileInput.addEventListener('input', (e) => {
+      const value = e.target.value;
+      if (value.length > 0) {
+        const lastChar = value[value.length - 1];
+        // Simuliere Tastendruck
+        const fakeEvent = {
+          key: lastChar,
+          ctrlKey: false,
+          altKey: false,
+          metaKey: false,
+          preventDefault: () => {}
+        };
+        InputHandler.handleKeydown(fakeEvent);
+        DOM.mobileInput.value = '';
+      }
+    });
+
+    DOM.startBtn.addEventListener('click', () => {
+      startGame();
+    });
+
+    DOM.restartBtn.addEventListener('click', () => {
+      goToStartScreen();
+    });
+
+    // Fokus-Management für Overlays
+    DOM.startScreen.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        // Fokus innerhalb des Start-Screens halten
+        const focusable = DOM.startScreen.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusable.length) {
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    });
+
+    DOM.gameOver.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        const focusable = DOM.gameOver.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusable.length) {
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    });
+
+    // Beim Verlassen des Fensters pausieren? (optional)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && GameState.state === 'playing') {
+        // Sanft pausieren? Hier nicht implementiert, um einfach zu bleiben.
+        // Könnte man erweitern.
+      }
+    });
+
+    // ============================================================
+    // INITIALISIERUNG
+    // ============================================================
+    function init() {
+      renderThemeList();
+      Renderer.updateDimensions();
+      // Start-Screen anzeigen
+      DOM.startScreen.classList.remove('hidden');
+      DOM.startBtn.focus();
+
+      // Bei Resize Dimensionen aktualisieren
+      window.addEventListener('resize', () => {
+        Renderer.updateDimensions();
+      });
+
+      // Verhindere Kontextmenü auf Spielfeld (optional)
+      DOM.playfield.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+
+    init();
+  </script>
+</body>
+</html>
