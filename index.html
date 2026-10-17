@@ -11,7 +11,27 @@
       margin: 0;
       padding: 0;
     }
-
+@font-face {
+  font-family: 'Atkinson';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/AtkinsonHyperlegible-Regular.ttf) format('ttf');
+}
+@font-face {
+  font-family: 'Atkinson';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/AtkinsonHyperlegible-Regular.ttf) format('ttf');
+}
+@font-face {
+  font-family: 'Atkinson';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/AtkinsonHyperlegible-Regular.ttf) format('ttf');
+}
     :root {
       --bg-dark: #0a0e1a;
       --bg-panel: #141b2b;
@@ -119,6 +139,7 @@
       white-space: nowrap;
       padding: 0.15em 0.4em;
       border-radius: 6px;
+      font-family: 'Atkinson';
       font-size: var(--font-size-word);
       font-weight: 600;
       letter-spacing: 0.02em;
@@ -231,6 +252,7 @@
 
     .overlay p, .overlay ul {
       max-width: 600px;
+      min-width: 290px;
       color: var(--text-muted);
       margin-bottom: 0.75rem;
       font-size: clamp(0.9rem, 2.5vw, 1.1rem);
@@ -450,7 +472,7 @@
   </style>
 </head>
 <body>
-  <div id="app" role="application" aria-label="Type-Shooter Weltraum">
+  <div id="app" role="application" aria-label="Type-Shooter">
     <!-- Spielfeld -->
     <div id="playfield" aria-hidden="true"></div>
 
@@ -476,12 +498,12 @@
 
     <!-- Start-Screen -->
     <div id="start-screen" class="overlay" role="dialog" aria-labelledby="start-title" aria-modal="true">
-      <h1 id="start-title">Type-Shooter: Weltraum</h1>
+      <h1 id="start-title">Type-Shooter</h1>
       <p>Tippe die fallenden Wörter ab, bevor sie die untere Leiste erreichen!</p>
       <p>Jeder richtige Buchstabe gibt <strong>+1 Punkt</strong>. Schließe Wörter fehlerfrei ab, um deinen <strong>Multiplikator</strong> zu erhöhen.</p>
       <p>Bei einem Fehler verlierst du 1 Punkt und der Multiplikator wird auf ×1 zurückgesetzt.</p>
-      <p>Erreicht ein Wort die Leiste, verlierst du <strong>25 × Multiplikator</strong> Punkte.</p>
-      <p>Das Spiel endet bei <strong>Score &lt; 0</strong> oder nach <strong>2 Minuten</strong>.</p>
+      <p>Erreicht ein Wort die Leiste, verlierst du <strong>25</strong> Punkte.</p>
+      <p>Das Spiel endet bei <strong>Score &lt; 0</strong> oder nach <strong>3 Minuten</strong>.</p>
       <div class="theme-list" id="theme-list" role="radiogroup" aria-label="Themenauswahl">
         <!-- Wird per JS befüllt -->
       </div>
@@ -525,8 +547,8 @@
     // KONFIGURATION (Balancing)
     // ============================================================
     const CONFIG = {
-      gameDuration: 120,            // Sekunden
-      levelDuration: 24,            // Sekunden pro Level
+      gameDuration: 180,            // Sekunden
+      levelDuration: 30,            // Sekunden pro Level
       maxLevel: 5,
       baseSpeed: 30,                // px/s zu Beginn (Level 1)
       speedGrowthPerLevel: 5,      // px/s pro Level
@@ -538,10 +560,10 @@
       penaltyOnReachPlayer: 25,
       multiplierResetOnError: true,
       speedColorStages: [
-        { maxSpeed: 40, color: "#7FDBFF", pattern: "solid", label: "sehr langsam" },
-        { maxSpeed: 65, color: "#3FA9F5", pattern: "dashed", label: "langsam" },
-        { maxSpeed: 95, color: "#FFD93D", pattern: "dotted", label: "mittel" },
-        { maxSpeed: 130, color: "#FF8C42", pattern: "double", label: "schnell" },
+        { maxSpeed: 50, color: "#7FDBFF", pattern: "solid", label: "sehr langsam" },
+        { maxSpeed: 70, color: "#3FA9F5", pattern: "dashed", label: "langsam" },
+        { maxSpeed: 90, color: "#FFD93D", pattern: "dotted", label: "mittel" },
+        { maxSpeed: 110, color: "#FF8C42", pattern: "double", label: "schnell" },
         { maxSpeed: Infinity, color: "#8B0000", pattern: "solid", label: "sehr schnell" }
       ],
       wordSpeedVariance: 0.3       // Zufallsstreuung pro Wort (±30%)
@@ -552,14 +574,54 @@
     // ============================================================
     const THEMES = [
   {
+    id: "buchstaben",
+    name: "Buchstaben",
+    spawnIntervalStart: 2000,
+    spawnIntervalMin: 200,
+    maxWordsOnScreen: 12,
+    baseSpeed: 45,
+    speedGrowthPerLevel: 8,
+    levels: [
+      { level: 1, words: ["a", "s", "d", "f", "j", "k", "l", "ö", "das" ] },
+      { level: 2, words: ["g", "h", "ä", "m", "n", "v", "b", "e", "i", "die" ] },
+      { level: 3, words: ["o", "p", "q", "w", "e", "r", "t", "z", "u", "i", "c", "der" ] },
+      { level: 4, words: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0" ] },
+      { level: 5, words: ["y", "x", "ß" ] }
+    ]
+  },
+  {
+    id: "buchstaben2",
+    name: "Buchstaben 2",
+    spawnIntervalStart: 2000,
+    spawnIntervalMin: 200,
+    maxWordsOnScreen: 12,
+    baseSpeed: 45,
+    speedGrowthPerLevel: 8,
+    levels: [
+      { level: 1, words: ["a", "s", "d", "f", "j", "k", "l", "ö", "das",
+        "A", "S", "D", "F", "J", "K", "L", "Ö"
+       ] },
+      { level: 2, words: ["g", "h", "ä", "m", "n", "v", "b", "e", "i", "die",
+        "G", "H", "Ä", "M", "N", "V", "B", "E", "I"
+       ] },
+      { level: 3, words: ["o", "p", "q", "w", "e", "r", "t", "z", "u", "i", "c", "der",
+        "O", "P", "Q", "W", "E", "R", "T", "Z", "U", "I", "C"
+       ] },
+      { level: 4, words: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0" ] },
+      { level: 5, words: ["y", "x", "?", "!", "ß", "Straße",
+        "Y", "X", "#", "+", "//", "{", "}", "(", ")", "="
+       ] }
+    ]
+  },
+  {
     id: "zombies",
     name: "Zombies",
     levels: [
-      { level: 1, words: ["Blut", "Grab", "Faul", "Biss", "Kral", "Darm"] },
+      { level: 1, words: ["Blut", "Grab", "Faul", "Biss", "Kralle", "Gehirn"] },
       { level: 2, words: ["Zombie", "Untot", "Seuche", "Horde", "Virus", "Angst"] },
       { level: 3, words: ["Apokalypse", "Infektion", "Überleben", "Bunker", "Mutation"] },
       { level: 4, words: ["Zombie-Horde", "Seuchengefahr", "Überlebenscamp", "Todeszone"] },
-      { level: 5, words: ["Die Toten wandeln.", "Walking Dead" ] }
+      { level: 5, words: ["Die Toten wandeln!", "Walking Dead" ] }
     ]
   },
   {
@@ -577,7 +639,7 @@
     id: "xmen",
     name: "X-Men",
     levels: [
-      { level: 1, words: ["Eis", "Sturm", "Feuer", "Gen", "X", "Men"] },
+      { level: 1, words: ["Eis", "Feuer", "Genetik", "X-Men"] },
       { level: 2, words: ["Sentinel", "Wolverine", "Cyclops", "Storm", "Jean", "Rogue", "Deadpool"] },
       { level: 3, words: ["Mutation", "Telepathie", "Magneto", "Gambit", "Nightcrawler"] },
       { level: 4, words: ["Professor X", "Kraftfeld", "Gestaltwandler", "Firestar", "Genosha", "Cerebro"] },
@@ -606,7 +668,7 @@
       score: 0,
       level: 1,
       multiplier: 1,
-      maxMultiplier: 1,
+      maxMultiplier: 100,
       timeLeft: CONFIG.gameDuration,
       wordsDestroyed: 0,
       correctLetters: 0,
@@ -917,7 +979,8 @@
         const text = pickWeightedWord(theme, GameState.level);
 
         // Geschwindigkeit berechnen
-        const baseSpeed = CONFIG.baseSpeed + (GameState.level - 1) * CONFIG.speedGrowthPerLevel;
+        const baseSpeed = ( theme.baseSpeed ?? CONFIG.baseSpeed ) + (GameState.level - 1) 
+          * ( theme.speedGrowthPerLevel ?? CONFIG.speedGrowthPerLevel );
         // Kürzere Wörter schneller, längere langsamer
         const lengthFactor = Math.max(0.6, 1.4 - (text.length / 20));
         const variance = 1 + (Math.random() * 2 - 1) * CONFIG.wordSpeedVariance;
@@ -967,8 +1030,11 @@
       },
 
       getSpawnInterval() {
-        const progress = (GameState.level - 1) / (CONFIG.maxLevel - 1);
-        return CONFIG.spawnIntervalStart - progress * (CONFIG.spawnIntervalStart - CONFIG.spawnIntervalMin);
+        const theme = getTheme(GameState.themeId),
+          progress = (GameState.level - 1) / (CONFIG.maxLevel - 1),
+          iStart = theme.spawnIntervalStart ?? CONFIG.spawnIntervalStart,
+          iMin = theme.spawnIntervalMin ?? CONFIG.spawnIntervalMin;
+        return iStart - progress * (iStart - iMin);
       }
     };
 
@@ -999,7 +1065,20 @@
 
         // Wenn kein Wort selektiert: versuche Auswahl
         if (GameState.selectedWordId === null) {
-          this.trySelectWord(char);
+          
+
+          if( !this.trySelectWord(char) ) {
+            //Fehlschlag: multiplikator weg.
+            Audio.wrongLetter();
+            GameState.wrongLetters++;
+            if (CONFIG.multiplierResetOnError) {
+              GameState.multiplier = 1;
+              // Visuelles Feedback
+              this.flashRed();
+            }
+            this.updateHUD();
+          }
+
         } else {
           // Wort ist selektiert: Buchstabe prüfen
           this.processTypedChar(char);
@@ -1026,8 +1105,10 @@
           Renderer.dimOtherWords(bestWord.id);
           // Direkt den Buchstaben verarbeiten
           this.processTypedChar(char);
+          return true;
         }
         // Kein passendes Wort: nichts tun (kein Punktabzug)
+        return false;
       },
 
       processTypedChar(char) {
@@ -1054,6 +1135,7 @@
 
           // Prüfen ob Wort komplett
           if (word.typedCount >= word.text.length) {
+
             this.completeWord(word);
           }
         } else {
@@ -1090,7 +1172,13 @@
         GameState.maxMultiplier = Math.max(GameState.maxMultiplier, GameState.multiplier);
         GameState.wordsDestroyed++;
 
+
         Audio.wordComplete();
+        
+        if( GameState.multiplier > 1 ) {
+          GameState.score += word.text.length * GameState.multiplier;
+          this.updateHUD();
+        }
 
         // Explosion
         const el = word.element;
@@ -1220,7 +1308,8 @@
       // Spawn-Timer
       GameState.spawnTimer += deltaMs;
       const spawnInterval = Spawner.getSpawnInterval();
-      if (GameState.spawnTimer >= spawnInterval && GameState.activeWords.size < CONFIG.maxWordsOnScreen) {
+      if (GameState.spawnTimer >= spawnInterval 
+        && GameState.activeWords.size < (getTheme(GameState.themeId).maxWordsOnScreen ?? CONFIG.maxWordsOnScreen) ) {
         GameState.spawnTimer = 0;
         Spawner.spawnWord();
       }
@@ -1236,8 +1325,9 @@
         // Prüfen ob untere Border erreicht
         if (word.y >= playerLineY - 10) {
           // Wort trifft Spieler
-          GameState.score -= CONFIG.penaltyOnReachPlayer * GameState.multiplier;
+          GameState.score -= CONFIG.penaltyOnReachPlayer;// * GameState.multiplier;
           GameState.multiplier = 1;
+          GameState.wrongLetters++;
 
           Audio.wordHitPlayer();
 
